@@ -14,19 +14,19 @@ import logging
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 # Constants for column names
 TEMP_COLUMN = 'T (C)'
-RESISTANCE_COLUMN = 'Type 8016'
+RESISTANCE_COL_LABEL = 'Type 8016'
+REF_R = 10000
 
 class ThermistorModel:
-    def __init__(self, file_path, resistance_column=RESISTANCE_COLUMN):
+    def __init__(self, file_path, ref_R, resistance_col_label=RESISTANCE_COL_LABEL):
         """
         Initialize the ThermistorModel with data from the specified file.
 
         :param file_path: Path to the CSV file containing thermistor data.
-        :param resistance_column: Name of the column containing the resistance ratio data (R/R(25°C)).
+        :param resistance_col_label: Name of the column containing the resistance ratio data (R/R(25°C)).
         """
         try:
             # Load the CSV file
@@ -34,18 +34,19 @@ class ThermistorModel:
 
             # Extract temperature and resistance ratio columns
             self.temperatures = data[TEMP_COLUMN].values
-            self.resistance_ratios = data[resistance_column].values
+            resistance_ratios = data[resistance_col_label].values
+            self.resistances = resistance_ratios* ref_R
 
             # Ensure the data is not empty
-            if len(self.temperatures) == 0 or len(self.resistance_ratios) == 0:
+            if len(self.temperatures) == 0 or len(self.resistances) == 0:
                 raise ValueError("Loaded data columns are empty.")
 
             # Create interpolation models for temperature and resistance ratio
             self.temp_from_resistance = interp1d(
-                self.resistance_ratios, self.temperatures, kind='linear', fill_value="extrapolate"
+                self.resistances, self.temperatures, kind='linear', fill_value="extrapolate"
             )
             self.resistance_from_temp = interp1d(
-                self.temperatures, self.resistance_ratios, kind='linear', fill_value="extrapolate"
+                self.temperatures, self.resistances, kind='linear', fill_value="extrapolate"
             )
 
             logger.info("Interpolation model initialized successfully.")
@@ -63,32 +64,33 @@ class ThermistorModel:
             self.temp_from_resistance = None
             self.resistance_from_temp = None
 
-    def get_temperature(self, resistance_ratio):
+    def get_temperature(self, resistance):
         """
         Get the temperature corresponding to a given resistance ratio.
 
-        :param resistance_ratio: The resistance ratio (R/R(25°C)).
+        :param resistance: The resistance value.
         :return: Estimated temperature or raises an error if out of bounds.
         """
         if self.temp_from_resistance is None:
             raise ValueError("Model not initialized.")
 
         # Check bounds and raise a clear error message if out of range
-        if np.any(resistance_ratio < np.min(self.resistance_ratios)) or np.any(resistance_ratio > np.max(self.resistance_ratios)):
-            min_ratio = np.min(self.resistance_ratios)
-            max_ratio = np.max(self.resistance_ratios)
+        if np.any(resistance < np.min(self.resistances)) or np.any(resistance > np.max(self.resistances)):
+            print('mydebug1451')
+            min_R = np.min(self.resistances)
+            max_R = np.max(self.resistances)
             
             # Generate an appropriate error message depending on array or single value
-            if np.isscalar(resistance_ratio):
-                raise ValueError(f"Input resistance ratio ({resistance_ratio:.2e}) is out of bounds. "
-                                 f"Valid domain: [{min_ratio:.2e}:{max_ratio:.2e}].")
+            if np.isscalar(resistance):
+                raise ValueError(f"Input resistance ratio ({resistance:.2e}) is out of bounds. "
+                                 f"Valid domain: [{min_R:.2e}:{max_R:.2e}].")
             else:
                 raise ValueError(f"One or more input resistance ratios are out of bounds. "
-                             f"Valid domain: [{min_ratio:.2e}:{max_ratio:.2e}].")
+                             f"Valid domain: [{min_R:.2e}:{max_R:.2e}].")
 
-        return self.temp_from_resistance(resistance_ratio)
+        return self.temp_from_resistance(resistance)
 
-    def get_resistance_ratio(self, temperature):
+    def get_resistance(self, temperature):
         """
         Get the resistance ratio corresponding to a given temperature.
 
@@ -118,7 +120,7 @@ if __name__ == '__main__':
     file_path = r"../../../Thermistor_R_vs_T.csv"
 
     # Initialize the ThermistorModel
-    thermistor_model = ThermistorModel(file_path, RESISTANCE_COLUMN)
+    thermistor_model = ThermistorModel(file_path, ref_R= REF_R, resistance_col_label=RESISTANCE_COL_LABEL)
 
     # Check if the model is available
     if thermistor_model.temp_from_resistance is not None and thermistor_model.resistance_from_temp is not None:
@@ -127,21 +129,24 @@ if __name__ == '__main__':
         # Get the original data for comparison:
         data = pd.read_csv(file_path, sep='\t')
         temperatures = data[TEMP_COLUMN].values  # Extract the temperature and resistance ratio columns
-        resistance_ratios = data[RESISTANCE_COLUMN].values
-        
+        resistances = data[RESISTANCE_COL_LABEL].values*REF_R
+            
         # Create a log-spaced array for resistance ratios
-        resistance_ratio_min = np.min(resistance_ratios)
-        resistance_ratio_max = np.max(resistance_ratios)
-        resistance_ratio_range = np.logspace(np.log10(resistance_ratio_min), np.log10(resistance_ratio_max), 200)
+        resistance_min = np.min(resistances)
+        resistance_max = np.max(resistances)
+        resistance_range = np.logspace(np.log10(resistance_min), np.log10(resistance_max), 200)
+        # Clip values within bounds
+        resistance_range = np.clip(resistance_range, resistance_min, resistance_max)
+
 
         # Calculate temperature from the model for each resistance ratio in the range
         try:
-            temperatures_from_interpolation = thermistor_model.get_temperature(resistance_ratio_range)
+            temperatures_from_interpolation = thermistor_model.get_temperature(resistance_range)
 
             # Plot the results
             plt.figure(figsize=(10, 5))
-            plt.plot(resistance_ratio_range, temperatures_from_interpolation, '.g', label='Interpolation Model', ms=2)
-            plt.scatter(resistance_ratios, temperatures, label='Original Data Points', color='blue', s=10)
+            plt.plot(resistance_range, temperatures_from_interpolation, '.g', label='Interpolation Model', ms=2)
+            plt.scatter(resistances, temperatures, label='Original Data Points', color='blue', s=10)
             plt.xscale('log')  # Set x-axis to logarithmic scale for better visualization
             plt.xlabel('Resistance Ratio (R/R(25°C))')
             plt.ylabel('Temperature (°C)')
