@@ -21,7 +21,7 @@ TEMP_COLUMN = 'T (C)'
 RESISTANCE_COLUMN = 'Type 8016'
 
 class ThermistorModel:
-    def __init__(self, file_path, resistance_column):
+    def __init__(self, file_path, resistance_column=RESISTANCE_COLUMN):
         """
         Initialize the ThermistorModel with data from the specified file.
 
@@ -79,8 +79,8 @@ class ThermistorModel:
             max_ratio = np.max(self.resistance_ratios)
             
             # Generate an appropriate error message depending on array or single value
-            if resistance_ratio.size == 1:
-                raise ValueError(f"Input resistance ratio ({resistance_ratio.item():.2e}) is out of bounds. "
+            if np.isscalar(resistance_ratio):
+                raise ValueError(f"Input resistance ratio ({resistance_ratio:.2e}) is out of bounds. "
                                  f"Valid domain: [{min_ratio:.2e}:{max_ratio:.2e}].")
             else:
                 raise ValueError(f"One or more input resistance ratios are out of bounds. "
@@ -104,8 +104,8 @@ class ThermistorModel:
             max_temp = np.max(self.temperatures)
             
             # Generate an appropriate error message depending on array or single value
-            if temperature.size == 1:
-                raise ValueError(f"Input temperature ({temperature.item():.2f}°C) is out of bounds. "
+            if np.isscalar(temperature):
+                raise ValueError(f"Input temperature ({temperature:.2f}°C) is out of bounds. "
                                  f"Valid domain: [{min_temp:.2f}°C:{max_temp:.2f}°C].")
             else:
                 raise ValueError(f"One or more input temperatures are out of bounds. "
