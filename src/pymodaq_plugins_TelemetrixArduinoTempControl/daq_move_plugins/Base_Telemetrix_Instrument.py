@@ -64,31 +64,55 @@ class Base_Telemetrix_Instrument:
 
 if __name__ == '__main__':
     
-    from Digital_Output_Controller import Digital_PinController
-    RELAY_PIN_1 = 8  # Digital pin where relay 1 is connected
-    RELAY_PIN_2 = 2  # Digital pin where relay 2 is connected
+    from thermistor_model import ThermistorModel 
+    from Digital_Output_Controller import Digital_PinController  
+    from Thermistor_Reader import ThermistorReader  
     
-    # Frequencies for blinking (in seconds)
-    frequency_relay_1 = 1.0  # 1 Hz
-    frequency_relay_2 = 0.5  # 2 Hz
+    # Setup logging
+    logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    
+    
+    # Define pins and constants
+    THERMISTOR_PIN = 4  # Analog pin where thermistor is connected
+    DIGITAL_PIN_1 = 8     # Digital pin for relay 1
+    DIGITAL_PIN_2 = 2     # Digital pin for relay 2
+    THERMISTOR_25C = 10000  # Resistance at 25°C
+    SERIES_RESISTOR = 10000  # Known resistor in ohms
 
-    logger.debug('Starting multiple digital pins control test.')
+    # Load thermistor model from CSV file
+    file_path = "../../../Thermistor_R_vs_T.csv"
+    resistance_column = 'Type 8016'
+    thR_model = ThermistorModel(file_path, ref_R=THERMISTOR_25C, resistance_col_label=resistance_column)
 
-    with Digital_PinController(RELAY_PIN_1) as relay_controller1:
-        with Digital_PinController(RELAY_PIN_2) as relay_controller2:
-            try:
-                while True:
-                    relay_controller1.turn_on()
-                    time.sleep(frequency_relay_1 / 2)  # Half period for ON state
-                    relay_controller1.turn_off()
-                    time.sleep(frequency_relay_1 / 2)  # Half period for OFF state
-                    
-                    # Blink relay 2
-                    relay_controller2.turn_on()
-                    time.sleep(frequency_relay_2 / 2)  # Half period for ON state
-                    relay_controller2.turn_off()
-                    time.sleep(frequency_relay_2 / 2)  # Half period for OFF state
-            except KeyboardInterrupt:
-                logger.info("Session ended.")
-            except Exception as e:
-                logger.error(f"Error: {e}")
+    # Instantiate the thermistor reader and relay controllers
+    with ThermistorReader(THERMISTOR_PIN, thR_model, series_resistor=SERIES_RESISTOR) as thermistor_reader, \
+         Digital_PinController(DIGITAL_PIN_1) as relay_controller1, \
+         Digital_PinController(DIGITAL_PIN_2) as relay_controller2:
+        
+        try:
+            while True:
+                # Display the temperature from the thermistor
+                temperature = thermistor_reader.get_temperature()
+                if temperature is not None:
+                    print(f"Temperature: {temperature:.2f}°C")
+
+                # Blink relay 1 at 0.5 Hz (2 seconds ON, 2 seconds OFF)
+                relay_controller1.turn_on()
+                time.sleep(.2)  # ON for 2 seconds
+                relay_controller1.turn_off()
+                time.sleep(.2)  # OFF for 2 seconds
+
+                # Blink relay 2 at 1/3 Hz (3 seconds ON, 3 seconds OFF)
+                relay_controller2.turn_on()
+                time.sleep(.3)  # ON for 3 seconds
+                relay_controller2.turn_off()
+                time.sleep(.3)  # OFF for 3 seconds
+
+                # Wait 0.5 seconds before the next temperature reading
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            logger.info("Session ended.")
+        except Exception as e:
+            logger.error(f"Error: {e}")
