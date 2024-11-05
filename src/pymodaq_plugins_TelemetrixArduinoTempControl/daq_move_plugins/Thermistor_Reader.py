@@ -4,6 +4,7 @@ from telemetrix import telemetrix
 from collections import deque
 from thermistor_model import ThermistorModel 
 import numpy as np 
+from Base_Telemetrix_Instrument import Base_Telemetrix_Instrument
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
@@ -15,40 +16,17 @@ VCC = 5.0  # Supply voltage (5V for Arduino)
 ARDUINO_ANALOG_PIN_VOLTAGE = 5  # Range of Arduino analog pin (5V)
 ARDUINO_ANALOG_BITS = 10  # Number of bits on analog pins
 
-class ThermistorReader:
+class ThermistorReader(Base_Telemetrix_Instrument):
     
-    def __init__(self, pin, thR_model, board=None, com_port=None, ip_port=31335, buffer_size=4, series_mode='VCC_Rth_R_GND', series_resistor=1e4):
+    def __init__(self, pin, thR_model, com_port=None, ip_port=31335, buffer_size=4, series_mode='VCC_Rth_R_GND', series_resistor=1e4):
+        super().__init__(com_port, ip_port)  # Initialize the base class
         self.pin = pin
         self.thR_model = thR_model
-        self.board = board
-        self.com_port = com_port
-        self.ip_port = ip_port
         self.series_resistor = series_resistor
         self.series_mode = series_mode
         self._buffer = deque(maxlen=buffer_size)
         self._temperature = None
-
-    def open_connection(self):
-        if self.board is None:
-            logger.debug('Establishing connection with Arduino...')
-            self.board = telemetrix.Telemetrix(com_port=self.com_port, ip_port=self.ip_port)
-        elif not isinstance(self.board, telemetrix.Telemetrix):
-            raise ConnectionError("Invalid board instance provided.")
-        
         self.board.set_pin_mode_analog_input(self.pin, callback=self._analog_callback)
-
-    def close_connection(self):
-        logger.debug('Closing Arduino connection...')
-        if self.board:
-            self.board.shutdown()
-            self.board = None
-
-    def __enter__(self):
-        self.open_connection()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.close_connection()
 
     def _analog_callback(self, data):
         analog_value = data[2]
@@ -91,7 +69,11 @@ class ThermistorReader:
             return float('inf')
 
     def get_temperature(self):
-        return self._temperature
+        if self._temperature is None:
+            logger.warning('Temperature from thermistor is undefined')
+            return None
+        else:
+            return self._temperature
 
 if __name__ == '__main__':
     THERMISTOR_PIN = 4  # Analog pin where thermistor is connected
