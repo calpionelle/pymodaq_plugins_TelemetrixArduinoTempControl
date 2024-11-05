@@ -7,13 +7,14 @@ Created on Thu Oct 31 16:14:05 2024
 
 import pandas as pd
 import numpy as np
-from scipy.interpolate import interp1d
+from scipy.interpolate import Rbf
 import matplotlib.pyplot as plt
 import logging
 
 # Setup logging
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 # Constants for column names
 TEMP_COLUMN = 'T (C)'
@@ -42,12 +43,12 @@ class ThermistorModel:
                 raise ValueError("Loaded data columns are empty.")
 
             # Create interpolation models for temperature and resistance ratio
-            self.temp_from_resistance = interp1d(
-                self.resistances, self.temperatures, kind='linear', fill_value="extrapolate"
-            )
-            self.resistance_from_temp = interp1d(
-                self.temperatures, self.resistances, kind='linear', fill_value="extrapolate"
-            )
+            temp_rbf = Rbf(self.resistances, self.temperatures, function='linear')
+            resistance_rbf = Rbf(self.temperatures, self.resistances, function='linear')
+            
+            # Wrapping with lambdas to match input type
+            self.temp_from_resistance = lambda r: temp_rbf(r).item() if np.isscalar(r) else temp_rbf(r)
+            self.resistance_from_temp = lambda t: resistance_rbf(t).item() if np.isscalar(t) else resistance_rbf(t)
 
             logger.info("Interpolation model initialized successfully.")
 
@@ -76,7 +77,6 @@ class ThermistorModel:
 
         # Check bounds and raise a clear error message if out of range
         if np.any(resistance < np.min(self.resistances)) or np.any(resistance > np.max(self.resistances)):
-            print('mydebug1451')
             min_R = np.min(self.resistances)
             max_R = np.max(self.resistances)
             
