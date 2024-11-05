@@ -60,3 +60,35 @@ class Base_Telemetrix_Instrument:
     def __exit__(self, exc_type, exc_value, traceback):
         logger.debug(f'Exiting context with RelayController for pin {self.pin}.')
         self.connection_manager.disconnect()  # Disconnect when exiting the context
+
+
+if __name__ == '__main__':
+    
+    from Digital_Output_Controller import Digital_PinController
+    RELAY_PIN_1 = 8  # Digital pin where relay 1 is connected
+    RELAY_PIN_2 = 2  # Digital pin where relay 2 is connected
+    
+    # Frequencies for blinking (in seconds)
+    frequency_relay_1 = 1.0  # 1 Hz
+    frequency_relay_2 = 0.5  # 2 Hz
+
+    logger.debug('Starting multiple digital pins control test.')
+
+    with Digital_PinController(RELAY_PIN_1) as relay_controller1:
+        with Digital_PinController(RELAY_PIN_2) as relay_controller2:
+            try:
+                while True:
+                    relay_controller1.turn_on()
+                    time.sleep(frequency_relay_1 / 2)  # Half period for ON state
+                    relay_controller1.turn_off()
+                    time.sleep(frequency_relay_1 / 2)  # Half period for OFF state
+                    
+                    # Blink relay 2
+                    relay_controller2.turn_on()
+                    time.sleep(frequency_relay_2 / 2)  # Half period for ON state
+                    relay_controller2.turn_off()
+                    time.sleep(frequency_relay_2 / 2)  # Half period for OFF state
+            except KeyboardInterrupt:
+                logger.info("Session ended.")
+            except Exception as e:
+                logger.error(f"Error: {e}")
