@@ -54,11 +54,11 @@ class Base_Telemetrix_Instrument:
         self.connection_manager.disconnect()
     
     def __enter__(self):
-        logger.debug(f'Entering context with RelayController for pin {self.pin}.')
+        logger.debug(f'Entering context with Base_Telemetrix_Instrument for pin {self.pin}.')
         return self  # Return the instance itself for use within the context
 
     def __exit__(self, exc_type, exc_value, traceback):
-        logger.debug(f'Exiting context with RelayController for pin {self.pin}.')
+        logger.debug(f'Exiting context with Base_Telemetrix_Instrument for pin {self.pin}.')
         self.connection_manager.disconnect()  # Disconnect when exiting the context
 
 

@@ -43,6 +43,11 @@ class Digital_PinController(Base_Telemetrix_Instrument):
     def is_on(self):
         logger.debug(f'Checking if digital pin {self.pin} is ON: {self.state}')
         return self.state
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        logger.debug(f'Setting RelayController pin {self.pin} to low before exiting.')
+        self.turn_off()
+        super().__exit__(exc_type, exc_value, traceback)  # Call the parent method
 
 if __name__ == '__main__':
     RELAY_PIN_1 = 8  # Digital pin where digital_pin 1 is connected
