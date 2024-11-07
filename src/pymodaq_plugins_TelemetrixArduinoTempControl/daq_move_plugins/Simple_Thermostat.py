@@ -14,16 +14,19 @@ from Digital_Output_Controller import Digital_PinController
 import os
 
 # Define constants
-THERMISTOR_PIN = 4       # Analog pin where thermistor is connected
-DIGITAL_PIN = 2          # Digital pin to control
-TEMP_THRESHOLD = 26.0    # Temperature threshold in °C
-SERIES_RESISTOR = 10000  # Known resistor in ohms
-THERMISTOR_25C = 10000   # Resistance of the thermistor at 25°C
-MIN_TIME = 5.0           # Minimum time interval between pin state changes in seconds
+THERMISTOR_PIN_HEATER = 4        # Analog pin for the heater thermistor
+THERMISTOR_PIN_COOLER = 5        # Analog pin for the cooler thermistor (e.g., A0)
+DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
+DIGITAL_PIN_COOLER = 3           # Digital pin to control the cooler
+TEMP_THRESHOLD_HEATER = 25.0     # Heater activation threshold in °C
+TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
+SERIES_RESISTOR_HEATER = 10000   # Series resistor for the heater thermistor in ohms
+SERIES_RESISTOR_COOLER = 10000   # Series resistor for the cooler thermistor in ohms
+THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
+MIN_TIME = 5.0                   # Minimum time interval between pin state changes in seconds
 
 # Define a logger setup function
-def setup_logger(logger_name, log_file, level=logging.WARNING):
-    
+def setup_logger(logger_name, log_file, level=logging.DEBUG):
     # Configure logger
     l = logging.getLogger(logger_name)
     
@@ -33,18 +36,25 @@ def setup_logger(logger_name, log_file, level=logging.WARNING):
     
     formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt="%Y.%m.%d-%H:%M:%S")
     
-    # File handler
+    # File handler for all messages, including DEBUG
     fileHandler = logging.FileHandler(log_file, mode='w')
+    fileHandler.setLevel(logging.DEBUG)  # Log all levels to the file
     fileHandler.setFormatter(formatter)
     
-    # Stream handler (console output)
+    # Stream handler (console output) for WARNING and above
     streamHandler = logging.StreamHandler()
+    streamHandler.setLevel(logging.INFO)  # Only WARNING and above to console
     streamHandler.setFormatter(formatter)
     
-    l.setLevel(level)
+    # Set logger level to DEBUG so that file captures all levels
+    l.setLevel(logging.DEBUG)
+    
+    # Add handlers to the logger
     l.addHandler(fileHandler)
     l.addHandler(streamHandler)
+    
     return l
+
 
 # Define log directory and file path
 log_directory = os.path.join(os.getcwd(), "logs")  
@@ -57,54 +67,67 @@ log_file_path = os.path.join(log_directory, f"temperature_log_{datetime.now().st
 logger = setup_logger('TemperatureLogger', log_file_path, level=logging.DEBUG)
 logger.info("Logger initialized. Temperature monitoring started.")
 
-# Initialize thermistor model and reader
+# Initialize thermistor models and readers
 file_path = "../../../Thermistor_R_vs_T.csv"
 resistance_column = 'Type 8016'  # Adjust based on your thermistor data
 thR_model = ThermistorModel(file_path, ref_R=THERMISTOR_25C, resistance_col_label=resistance_column)
 
-logger.info(f'Using a thermistor of type {resistance_column}, of ref resistance {THERMISTOR_25C} ohm, a series resistor of {SERIES_RESISTOR} ohm')
+logger.info(f"Using a heater thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_HEATER} ohm.")
+logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_COOLER} ohm.")
 
-with ThermistorReader(THERMISTOR_PIN, thR_model, series_resistor=SERIES_RESISTOR) as thermistor_reader, \
-     Digital_PinController(DIGITAL_PIN) as relay_controller:
+# Set up thermistor readers and controllers for the heater and cooler
+with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_Rth_R_GND') as heater_thermistor_reader, \
+     Digital_PinController(DIGITAL_PIN_HEATER) as heater_controller, \
+     ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_thermistor_reader, \
+     Digital_PinController(DIGITAL_PIN_COOLER) as cooler_controller:
     
-    last_toggle_time = 0  # Track the last time the pin was toggled
+    last_toggle_time_heater = 0  # Track the last toggle time for the heater
+    last_toggle_time_cooler = 0  # Track the last toggle time for the cooler
     
     try:
         while True:
-            # Read temperature from the thermistor
-            temperature = thermistor_reader.get_temperature()
-            
-            if temperature is not None:
-                # Log the temperature
-                logger.info(f"Temperature: {temperature:.2f}°C")
-                print(f"Temperature: {temperature:.2f}°C")
+            # Read temperature from the heater thermistor
+            heater_temperature = heater_thermistor_reader.get_temperature()
+            if heater_temperature is not None:
+                # Log the temperature for the heater
+                logger.info(f"Heater Temperature: {heater_temperature:.2f}°C")
                 
                 current_time = time.time()
-                if current_time - last_toggle_time >= MIN_TIME:
-                    print("Change available")
-                else:
-                    print("Change blocked")
+                if current_time - last_toggle_time_heater >= MIN_TIME:
+                    # Control the heater based on the temperature threshold
+                    if heater_temperature < TEMP_THRESHOLD_HEATER and not heater_controller.is_on():
+                        heater_controller.turn_on()
+                        logger.info("Heater ON")
+                        last_toggle_time_heater = current_time
+                    elif heater_temperature >= TEMP_THRESHOLD_HEATER and heater_controller.is_on():
+                        heater_controller.turn_off()
+                        logger.info("Heater OFF")
+                        last_toggle_time_heater = current_time
+
+            # Read temperature from the cooler thermistor
+            cooler_temperature = cooler_thermistor_reader.get_temperature()
+            if cooler_temperature is not None:
+                # Log the temperature for the cooler
+                logger.info(f"Cooler Temperature: {cooler_temperature:.2f}°C")
                 
-                # Check if enough time has passed since the last toggle
-                if (temperature < TEMP_THRESHOLD and current_time - last_toggle_time >= MIN_TIME):
-                    if not relay_controller.is_on():
-                        relay_controller.turn_on()
-                        print("Pin ON")
-                        logger.info('Turn on heater')
-                        last_toggle_time = current_time
-                elif (temperature >= TEMP_THRESHOLD and current_time - last_toggle_time >= MIN_TIME):
-                    if relay_controller.is_on():
-                        relay_controller.turn_off()
-                        print("Pin OFF")
-                        logger.info('Turn off heater')
-                        last_toggle_time = current_time
+                current_time = time.time()
+                if current_time - last_toggle_time_cooler >= MIN_TIME:
+                    # Control the cooler based on the temperature threshold
+                    if cooler_temperature > TEMP_THRESHOLD_COOLER and not cooler_controller.is_on():
+                        cooler_controller.turn_on()
+                        logger.info("Cooler ON")
+                        last_toggle_time_cooler = current_time
+                    elif cooler_temperature <= TEMP_THRESHOLD_COOLER and cooler_controller.is_on():
+                        cooler_controller.turn_off()
+                        logger.info("Cooler OFF")
+                        last_toggle_time_cooler = current_time
             
             # Wait for a short time before the next reading
             time.sleep(0.5)
     
     except KeyboardInterrupt:
-        print("Script terminated by user.")
         logger.info("Script terminated by user.")
     finally:
-        relay_controller.turn_off()  # Ensure pin is off on exit
-        logger.info("Script exited and pin turned off.")
+        heater_controller.turn_off()  # Ensure heater pin is off on exit
+        cooler_controller.turn_off()  # Ensure cooler pin is off on exit
+        logger.info("Script exited, and both heater and cooler pins turned off.")
