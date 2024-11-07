@@ -26,7 +26,7 @@ THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
 MIN_TIME = 5.0                   # Minimum time interval between pin state changes in seconds
 
 # Define a logger setup function
-def setup_logger(logger_name, log_file, level=logging.WARNING):
+def setup_logger(logger_name, log_file, level=logging.DEBUG):
     # Configure logger
     l = logging.getLogger(logger_name)
     
@@ -36,18 +36,25 @@ def setup_logger(logger_name, log_file, level=logging.WARNING):
     
     formatter = logging.Formatter('%(asctime)s - %(message)s', datefmt="%Y.%m.%d-%H:%M:%S")
     
-    # File handler
+    # File handler for all messages, including DEBUG
     fileHandler = logging.FileHandler(log_file, mode='w')
+    fileHandler.setLevel(logging.DEBUG)  # Log all levels to the file
     fileHandler.setFormatter(formatter)
     
-    # Stream handler (console output)
+    # Stream handler (console output) for WARNING and above
     streamHandler = logging.StreamHandler()
+    streamHandler.setLevel(logging.INFO)  # Only WARNING and above to console
     streamHandler.setFormatter(formatter)
     
-    l.setLevel(level)
+    # Set logger level to DEBUG so that file captures all levels
+    l.setLevel(logging.DEBUG)
+    
+    # Add handlers to the logger
     l.addHandler(fileHandler)
     l.addHandler(streamHandler)
+    
     return l
+
 
 # Define log directory and file path
 log_directory = os.path.join(os.getcwd(), "logs")  
@@ -84,7 +91,6 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
             if heater_temperature is not None:
                 # Log the temperature for the heater
                 logger.info(f"Heater Temperature: {heater_temperature:.2f}°C")
-                print(f"Heater Temperature: {heater_temperature:.2f}°C")
                 
                 current_time = time.time()
                 if current_time - last_toggle_time_heater >= MIN_TIME:
@@ -103,7 +109,6 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
             if cooler_temperature is not None:
                 # Log the temperature for the cooler
                 logger.info(f"Cooler Temperature: {cooler_temperature:.2f}°C")
-                print(f"Cooler Temperature: {cooler_temperature:.2f}°C")
                 
                 current_time = time.time()
                 if current_time - last_toggle_time_cooler >= MIN_TIME:
@@ -121,7 +126,6 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
             time.sleep(0.5)
     
     except KeyboardInterrupt:
-        print("Script terminated by user.")
         logger.info("Script terminated by user.")
     finally:
         heater_controller.turn_off()  # Ensure heater pin is off on exit
