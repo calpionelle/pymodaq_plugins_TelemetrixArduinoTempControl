@@ -77,7 +77,20 @@ logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref re
 
 # Base class for temperature control (Heater and Cooler)
 class TemperatureController:
-    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode):
+    heater_counter = 1  # Class variable to track heater instance count
+    cooler_counter = 1  # Class variable to track cooler instance count
+
+    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode, name=None):
+        # Assign a default name if none is provided
+        if not name:
+            if pin_mode == "heater":
+                name = f"heater{TemperatureController.heater_counter}"
+                TemperatureController.heater_counter += 1
+            elif pin_mode == "cooler":
+                name = f"cooler{TemperatureController.cooler_counter}"
+                TemperatureController.cooler_counter += 1
+        
+        self.name = name  # Assign the unique name to the controller
         self.thermistor_reader = ThermistorReader(thermistor_pin, thR_model, series_resistor=series_resistor, series_mode='VCC_R_Rth_GND')
         self.controller = Digital_PinController(digital_pin)
         self.threshold = threshold
@@ -86,51 +99,51 @@ class TemperatureController:
 
     def __enter__(self):
         # Initialize any necessary resources when the context is entered
-        logger.info(f"Initializing {self.pin_mode} controller")
+        logger.info(f"Initializing {self.name} ({self.pin_mode} controller)")
         self.controller.turn_off()  # Ensure the controller is off when entering the context
         return self  # Return the instance itself
 
     def __exit__(self, exc_type, exc_value, traceback):
         # Handle any cleanup when exiting the context
-        logger.info(f"Exiting {self.pin_mode} controller")
+        logger.info(f"Exiting {self.name} ({self.pin_mode} controller)")
         self.controller.turn_off()  # Ensure the controller is turned off when exiting the context
         if exc_type:
-            logger.error(f"An error occurred: {exc_value}")
+            logger.error(f"An error occurred in {self.name}: {exc_value}")
         return True  # Suppress exceptions (optional)
 
     def control(self, current_time, min_time):
         temperature = self.thermistor_reader.get_temperature()
         if temperature is not None:
-            logger.info(f"Temperature: {temperature:.2f}°C")
+            logger.info(f"{self.name} - Temperature: {temperature:.2f}°C")
             
             if current_time - self.last_toggle_time >= min_time:
                 if self.pin_mode == "heater" and temperature < self.threshold and not self.controller.is_on():
                     self.controller.turn_on()
-                    logger.info("Heater ON")
+                    logger.info(f"{self.name} - Heater ON")
                     self.last_toggle_time = current_time
                 elif self.pin_mode == "heater" and temperature >= self.threshold and self.controller.is_on():
                     self.controller.turn_off()
-                    logger.info("Heater OFF")
+                    logger.info(f"{self.name} - Heater OFF")
                     self.last_toggle_time = current_time
 
                 if self.pin_mode == "cooler" and temperature > self.threshold and not self.controller.is_on():
                     self.controller.turn_on()
-                    logger.info("Cooler ON")
+                    logger.info(f"{self.name} - Cooler ON")
                     self.last_toggle_time = current_time
                 elif self.pin_mode == "cooler" and temperature <= self.threshold and self.controller.is_on():
                     self.controller.turn_off()
-                    logger.info("Cooler OFF")
+                    logger.info(f"{self.name} - Cooler OFF")
                     self.last_toggle_time = current_time
 
 # Specialized class for Heater control
 class HeaterController(TemperatureController):
-    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model):
-        super().__init__(thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode="heater")
+    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model, name=None):
+        super().__init__(thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode="heater", name=name)
 
 # Specialized class for Cooler control
 class CoolerController(TemperatureController):
-    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model):
-        super().__init__(thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode="cooler")
+    def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model, name=None):
+        super().__init__(thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode="cooler", name=name)
 
 
 # Instantiate the heater and cooler controllers
