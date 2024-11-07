@@ -14,16 +14,16 @@ from Digital_Output_Controller import Digital_PinController
 import os
 
 # Define constants
-THERMISTOR_PIN_1 = 4       # First thermistor's analog pin
-THERMISTOR_PIN_2 = 5       # Second thermistor's analog pin (e.g., A0)
-DIGITAL_PIN_1 = 2          # First digital pin to control
-DIGITAL_PIN_2 = 3          # Second digital pin to control
-TEMP_THRESHOLD_1 = 26.0    # Temperature threshold for first thermistor in °C
-TEMP_THRESHOLD_2 = 27.0    # Temperature threshold for second thermistor in °C
-SERIES_RESISTOR_1 = 10000    # Known resistor in ohms
-SERIES_RESISTOR_2 = 10000    # Known resistor in ohms
-THERMISTOR_25C = 10000     # Resistance of the thermistor at 25°C
-MIN_TIME = 5.0             # Minimum time interval between pin state changes in seconds
+THERMISTOR_PIN_HEATER = 4        # Analog pin for the heater thermistor
+THERMISTOR_PIN_COOLER = 5        # Analog pin for the cooler thermistor (e.g., A0)
+DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
+DIGITAL_PIN_COOLER = 3           # Digital pin to control the cooler
+TEMP_THRESHOLD_HEATER = 25.0     # Heater activation threshold in °C
+TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
+SERIES_RESISTOR_HEATER = 10000   # Series resistor for the heater thermistor in ohms
+SERIES_RESISTOR_COOLER = 10000   # Series resistor for the cooler thermistor in ohms
+THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
+MIN_TIME = 5.0                   # Minimum time interval between pin state changes in seconds
 
 # Define a logger setup function
 def setup_logger(logger_name, log_file, level=logging.WARNING):
@@ -65,56 +65,57 @@ file_path = "../../../Thermistor_R_vs_T.csv"
 resistance_column = 'Type 8016'  # Adjust based on your thermistor data
 thR_model = ThermistorModel(file_path, ref_R=THERMISTOR_25C, resistance_col_label=resistance_column)
 
-logger.info(f'Using a thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and a series resistor of {SERIES_RESISTOR_1} ohm as heater thermistor')
-logger.info(f'Using a thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and a series resistor of {SERIES_RESISTOR_2} ohm as coolor thermistor')
+logger.info(f"Using a heater thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_HEATER} ohm.")
+logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_COOLER} ohm.")
 
-with ThermistorReader(THERMISTOR_PIN_1, thR_model, series_resistor=SERIES_RESISTOR_1) as thermistor_reader_1, \
-     Digital_PinController(DIGITAL_PIN_1) as relay_controller_1, \
-     ThermistorReader(THERMISTOR_PIN_2, thR_model, series_resistor=SERIES_RESISTOR_2, series_mode='VCC_R_Rth_GND') as thermistor_reader_2, \
-     Digital_PinController(DIGITAL_PIN_2) as relay_controller_2:
+# Set up thermistor readers and controllers for the heater and cooler
+with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_Rth_R_GND') as heater_thermistor_reader, \
+     Digital_PinController(DIGITAL_PIN_HEATER) as heater_controller, \
+     ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_thermistor_reader, \
+     Digital_PinController(DIGITAL_PIN_COOLER) as cooler_controller:
     
-    last_toggle_time_1 = 0  # Track the last time the first pin was toggled
-    last_toggle_time_2 = 0  # Track the last time the second pin was toggled
+    last_toggle_time_heater = 0  # Track the last toggle time for the heater
+    last_toggle_time_cooler = 0  # Track the last toggle time for the cooler
     
     try:
         while True:
-            # Read temperature from the first thermistor
-            temperature_1 = thermistor_reader_1.get_temperature()
-            if temperature_1 is not None:
-                # Log the temperature
-                logger.info(f"Temperature 1: {temperature_1:.2f}°C")
-                print(f"Temperature 1: {temperature_1:.2f}°C")
+            # Read temperature from the heater thermistor
+            heater_temperature = heater_thermistor_reader.get_temperature()
+            if heater_temperature is not None:
+                # Log the temperature for the heater
+                logger.info(f"Heater Temperature: {heater_temperature:.2f}°C")
+                print(f"Heater Temperature: {heater_temperature:.2f}°C")
                 
                 current_time = time.time()
-                if current_time - last_toggle_time_1 >= MIN_TIME:
-                    # Control the first digital pin based on the first temperature threshold
-                    if temperature_1 < TEMP_THRESHOLD_1 and not relay_controller_1.is_on():
-                        relay_controller_1.turn_on()
-                        logger.info("Pin 1 ON")
-                        last_toggle_time_1 = current_time
-                    elif temperature_1 >= TEMP_THRESHOLD_1 and relay_controller_1.is_on():
-                        relay_controller_1.turn_off()
-                        logger.info("Pin 1 OFF")
-                        last_toggle_time_1 = current_time
+                if current_time - last_toggle_time_heater >= MIN_TIME:
+                    # Control the heater based on the temperature threshold
+                    if heater_temperature < TEMP_THRESHOLD_HEATER and not heater_controller.is_on():
+                        heater_controller.turn_on()
+                        logger.info("Heater ON")
+                        last_toggle_time_heater = current_time
+                    elif heater_temperature >= TEMP_THRESHOLD_HEATER and heater_controller.is_on():
+                        heater_controller.turn_off()
+                        logger.info("Heater OFF")
+                        last_toggle_time_heater = current_time
 
-            # Read temperature from the second thermistor
-            temperature_2 = thermistor_reader_2.get_temperature()
-            if temperature_2 is not None:
-                # Log the temperature
-                logger.info(f"Temperature 2: {temperature_2:.2f}°C")
-                print(f"Temperature 2: {temperature_2:.2f}°C")
+            # Read temperature from the cooler thermistor
+            cooler_temperature = cooler_thermistor_reader.get_temperature()
+            if cooler_temperature is not None:
+                # Log the temperature for the cooler
+                logger.info(f"Cooler Temperature: {cooler_temperature:.2f}°C")
+                print(f"Cooler Temperature: {cooler_temperature:.2f}°C")
                 
                 current_time = time.time()
-                if current_time - last_toggle_time_2 >= MIN_TIME:
-                    # Control the second digital pin based on the second temperature threshold
-                    if temperature_2 > TEMP_THRESHOLD_2 and not relay_controller_2.is_on():
-                        relay_controller_2.turn_on()
-                        logger.info("Pin 2 ON")
-                        last_toggle_time_2 = current_time
-                    elif temperature_2 <= TEMP_THRESHOLD_2 and relay_controller_2.is_on():
-                        relay_controller_2.turn_off()
-                        logger.info("Pin 2 OFF")
-                        last_toggle_time_2 = current_time
+                if current_time - last_toggle_time_cooler >= MIN_TIME:
+                    # Control the cooler based on the temperature threshold
+                    if cooler_temperature > TEMP_THRESHOLD_COOLER and not cooler_controller.is_on():
+                        cooler_controller.turn_on()
+                        logger.info("Cooler ON")
+                        last_toggle_time_cooler = current_time
+                    elif cooler_temperature <= TEMP_THRESHOLD_COOLER and cooler_controller.is_on():
+                        cooler_controller.turn_off()
+                        logger.info("Cooler OFF")
+                        last_toggle_time_cooler = current_time
             
             # Wait for a short time before the next reading
             time.sleep(0.5)
@@ -123,6 +124,6 @@ with ThermistorReader(THERMISTOR_PIN_1, thR_model, series_resistor=SERIES_RESIST
         print("Script terminated by user.")
         logger.info("Script terminated by user.")
     finally:
-        relay_controller_1.turn_off()  # Ensure first pin is off on exit
-        relay_controller_2.turn_off()  # Ensure second pin is off on exit
-        logger.info("Script exited, and both pins turned off.")
+        heater_controller.turn_off()  # Ensure heater pin is off on exit
+        cooler_controller.turn_off()  # Ensure cooler pin is off on exit
+        logger.info("Script exited, and both heater and cooler pins turned off.")
