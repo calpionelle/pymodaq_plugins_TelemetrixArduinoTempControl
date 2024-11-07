@@ -83,7 +83,21 @@ class TemperatureController:
         self.threshold = threshold
         self.pin_mode = pin_mode
         self.last_toggle_time = 0
-    
+
+    def __enter__(self):
+        # Initialize any necessary resources when the context is entered
+        logger.info(f"Initializing {self.pin_mode} controller")
+        self.controller.turn_off()  # Ensure the controller is off when entering the context
+        return self  # Return the instance itself
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        # Handle any cleanup when exiting the context
+        logger.info(f"Exiting {self.pin_mode} controller")
+        self.controller.turn_off()  # Ensure the controller is turned off when exiting the context
+        if exc_type:
+            logger.error(f"An error occurred: {exc_value}")
+        return True  # Suppress exceptions (optional)
+
     def control(self, current_time, min_time):
         temperature = self.thermistor_reader.get_temperature()
         if temperature is not None:
@@ -117,6 +131,7 @@ class HeaterController(TemperatureController):
 class CoolerController(TemperatureController):
     def __init__(self, thermistor_pin, digital_pin, threshold, series_resistor, thR_model):
         super().__init__(thermistor_pin, digital_pin, threshold, series_resistor, thR_model, pin_mode="cooler")
+
 
 # Instantiate the heater and cooler controllers
 with HeaterController(THERMISTOR_PIN_HEATER, DIGITAL_PIN_HEATER, TEMP_THRESHOLD_HEATER, SERIES_RESISTOR_HEATER, thR_model) as heater_controller, \
