@@ -12,19 +12,31 @@ from thermistor_model import ThermistorModel
 from Thermistor_Reader import ThermistorReader
 from Digital_Output_Controller import Digital_PinController
 import os
+from enum import Enum
+
+# Enum to define whether the controller is a HEATER or COOLER
+class ControllerType(Enum):
+    HEATER = "Heater"
+    COOLER = "Cooler"
 
 # Base class for temperature control (Heater and Cooler)
 class TemperatureController:
     heater_counter = 1  # Class variable to track heater instance count
     cooler_counter = 1  # Class variable to track cooler instance count
 
-    def __init__(self, thermistor_reader, controller, threshold, name=None):
+    def __init__(self, thermistor_reader, controller, threshold, controller_type, name=None):
+        # Validate the instrument instances
+        if not isinstance(thermistor_reader, ThermistorReader):
+            raise TypeError("thermistor_reader must be an instance of ThermistorReader.")
+        if not isinstance(controller, Digital_PinController):
+            raise TypeError("controller must be an instance of Digital_PinController.")
+        
         # Assign a default name if none is provided
         if not name:
-            if isinstance(controller, Digital_PinController) and controller.pin == DIGITAL_PIN_HEATER:
+            if controller_type == ControllerType.HEATER:
                 name = f"heater{TemperatureController.heater_counter}"
                 TemperatureController.heater_counter += 1
-            elif isinstance(controller, Digital_PinController) and controller.pin == DIGITAL_PIN_COOLER:
+            elif controller_type == ControllerType.COOLER:
                 name = f"cooler{TemperatureController.cooler_counter}"
                 TemperatureController.cooler_counter += 1
         
@@ -32,6 +44,7 @@ class TemperatureController:
         self.thermistor_reader = thermistor_reader
         self.controller = controller
         self.threshold = threshold
+        self.controller_type = controller_type
         self.last_toggle_time = 0
 
     def __enter__(self):
@@ -54,28 +67,30 @@ class TemperatureController:
             logger.info(f"{self.name} - Temperature: {temperature:.2f}°C")
             
             if current_time - self.last_toggle_time >= min_time:
-                if isinstance(self.controller, Digital_PinController):
-                    if self.controller.pin == DIGITAL_PIN_HEATER and temperature < self.threshold and not self.controller.is_on():
+                # Control logic based on simple threshold
+                if self.controller_type == ControllerType.HEATER:
+                    if temperature < self.threshold and not self.controller.is_on():  # Heater on when temperature is below threshold
                         self.controller.turn_on()
                         logger.info(f"{self.name} - Heater ON")
                         self.last_toggle_time = current_time
-                    elif self.controller.pin == DIGITAL_PIN_HEATER and temperature >= self.threshold and self.controller.is_on():
+                    elif temperature >= self.threshold and self.controller.is_on():  # Heater off when temperature is above threshold
                         self.controller.turn_off()
                         logger.info(f"{self.name} - Heater OFF")
                         self.last_toggle_time = current_time
 
-                    if self.controller.pin == DIGITAL_PIN_COOLER and temperature > self.threshold and not self.controller.is_on():
+                elif self.controller_type == ControllerType.COOLER:
+                    if temperature > self.threshold and not self.controller.is_on():  # Cooler on when temperature is above threshold
                         self.controller.turn_on()
                         logger.info(f"{self.name} - Cooler ON")
                         self.last_toggle_time = current_time
-                    elif self.controller.pin == DIGITAL_PIN_COOLER and temperature <= self.threshold and self.controller.is_on():
+                    elif temperature <= self.threshold and self.controller.is_on():  # Cooler off when temperature is below threshold
                         self.controller.turn_off()
                         logger.info(f"{self.name} - Cooler OFF")
                         self.last_toggle_time = current_time
 
 if __name__ == '__main__': 
     
-    # Define constants
+    # Define constants 
     THERMISTOR_PIN_HEATER = 4        # Analog pin for the heater thermistor
     THERMISTOR_PIN_COOLER = 5        # Analog pin for the cooler thermistor (e.g., A0)
     DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
@@ -142,8 +157,8 @@ if __name__ == '__main__':
          Digital_PinController(DIGITAL_PIN_COOLER) as cooler_controller:
     
         try:
-            with TemperatureController(heater_reader, heater_controller, TEMP_THRESHOLD_HEATER) as heater_controller_instance, \
-                 TemperatureController(cooler_reader, cooler_controller, TEMP_THRESHOLD_COOLER) as cooler_controller_instance:
+            with TemperatureController(heater_reader, heater_controller, TEMP_THRESHOLD_HEATER, ControllerType.HEATER) as heater_controller_instance, \
+                 TemperatureController(cooler_reader, cooler_controller, TEMP_THRESHOLD_COOLER, ControllerType.COOLER) as cooler_controller_instance:
                 
                 while True:
                     current_time = time.time()
