@@ -95,8 +95,8 @@ if __name__ == '__main__':
     THERMISTOR_PIN_COOLER = 5        # Analog pin for the cooler thermistor (e.g., A0)
     DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
     DIGITAL_PIN_COOLER = 3           # Digital pin to control the cooler
-    TEMP_THRESHOLD_HEATER = 25.0     # Heater activation threshold in °C
-    TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
+    TEMP_THRESHOLD_HEATER = 23.0     # Heater activation threshold in °C
+    TEMP_THRESHOLD_COOLER = 24.0     # Cooler activation threshold in °C
     SERIES_RESISTOR_HEATER = 10000   # Series resistor for the heater thermistor in ohms
     SERIES_RESISTOR_COOLER = 10000   # Series resistor for the cooler thermistor in ohms
     THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
