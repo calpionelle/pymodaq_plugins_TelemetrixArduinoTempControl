@@ -90,7 +90,7 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
             heater_temperature = heater_thermistor_reader.get_temperature()
             if heater_temperature is not None:
                 # Log the temperature for the heater
-                logger.info(f"Heater Temperature: {heater_temperature:.2f}°C")
+                logger.info(f"\033[1;31mHeater Temperature: {heater_temperature:.2f}°C\033[0m")
                 
                 current_time = time.time()
                 if current_time - last_toggle_time_heater >= MIN_TIME:
@@ -108,7 +108,8 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
             cooler_temperature = cooler_thermistor_reader.get_temperature()
             if cooler_temperature is not None:
                 # Log the temperature for the cooler
-                logger.info(f"Cooler Temperature: {cooler_temperature:.2f}°C")
+                logger.info(f"\033[1;34mCooler Temperature: {cooler_temperature:.2f}°C\033[0m")
+
                 
                 current_time = time.time()
                 if current_time - last_toggle_time_cooler >= MIN_TIME:
