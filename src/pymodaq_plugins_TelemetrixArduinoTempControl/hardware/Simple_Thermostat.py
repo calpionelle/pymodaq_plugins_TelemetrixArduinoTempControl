@@ -14,14 +14,14 @@ from Digital_Output_Controller import Digital_PinController
 import os
 
 # Define constants
-THERMISTOR_PIN_HEATER = 4        # Analog pin for the heater thermistor
-THERMISTOR_PIN_COOLER = 5        # Analog pin for the cooler thermistor (e.g., A0)
+THERMISTOR_PIN_HEATER = 0        # Analog pin for the heater thermistor
+THERMISTOR_PIN_COOLER = 1        # Analog pin for the cooler thermistor (e.g., A0)
 DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
-DIGITAL_PIN_COOLER = 3           # Digital pin to control the cooler
+DIGITAL_PIN_COOLER = 4           # Digital pin to control the cooler
 TEMP_THRESHOLD_HEATER = 25.0     # Heater activation threshold in °C
 TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
-SERIES_RESISTOR_HEATER = 10000   # Series resistor for the heater thermistor in ohms
-SERIES_RESISTOR_COOLER = 10000   # Series resistor for the cooler thermistor in ohms
+SERIES_RESISTOR_HEATER = 13000   # Series resistor for the heater thermistor in ohms
+SERIES_RESISTOR_COOLER = 13000   # Series resistor for the cooler thermistor in ohms
 THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
 MIN_TIME = 5.0                   # Minimum time interval between pin state changes in seconds
 
@@ -76,7 +76,7 @@ logger.info(f"Using a heater thermistor of type {resistance_column}, with ref re
 logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_COOLER} ohm.")
 
 # Set up thermistor readers and controllers for the heater and cooler
-with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_Rth_R_GND') as heater_thermistor_reader, \
+with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_R_Rth_GND') as heater_thermistor_reader, \
      Digital_PinController(DIGITAL_PIN_HEATER) as heater_controller, \
      ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_thermistor_reader, \
      Digital_PinController(DIGITAL_PIN_COOLER) as cooler_controller:
@@ -95,12 +95,12 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
                 current_time = time.time()
                 if current_time - last_toggle_time_heater >= MIN_TIME:
                     # Control the heater based on the temperature threshold
-                    if heater_temperature < TEMP_THRESHOLD_HEATER and not heater_controller.is_on():
-                        heater_controller.turn_on()
+                    if heater_temperature < TEMP_THRESHOLD_HEATER and heater_controller.is_on():
+                        heater_controller.turn_off() # Turn off pin will turn on the relay power to heat
                         logger.info("Heater ON")
                         last_toggle_time_heater = current_time
-                    elif heater_temperature >= TEMP_THRESHOLD_HEATER and heater_controller.is_on():
-                        heater_controller.turn_off()
+                    elif heater_temperature >= TEMP_THRESHOLD_HEATER and not heater_controller.is_on():
+                        heater_controller.turn_on() # Turn on pin will turn off the relay power to stop heating
                         logger.info("Heater OFF")
                         last_toggle_time_heater = current_time
 
@@ -113,12 +113,12 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
                 current_time = time.time()
                 if current_time - last_toggle_time_cooler >= MIN_TIME:
                     # Control the cooler based on the temperature threshold
-                    if cooler_temperature > TEMP_THRESHOLD_COOLER and not cooler_controller.is_on():
-                        cooler_controller.turn_on()
+                    if cooler_temperature > TEMP_THRESHOLD_COOLER and cooler_controller.is_on():
+                        cooler_controller.turn_off() # Turn off pin will turn on the relay power to cool
                         logger.info("Cooler ON")
                         last_toggle_time_cooler = current_time
-                    elif cooler_temperature <= TEMP_THRESHOLD_COOLER and cooler_controller.is_on():
-                        cooler_controller.turn_off()
+                    elif cooler_temperature <= TEMP_THRESHOLD_COOLER and not cooler_controller.is_on():
+                        cooler_controller.turn_on() # Turn on pin will turn off the relay power to stop cooling
                         logger.info("Cooler OFF")
                         last_toggle_time_cooler = current_time
             
