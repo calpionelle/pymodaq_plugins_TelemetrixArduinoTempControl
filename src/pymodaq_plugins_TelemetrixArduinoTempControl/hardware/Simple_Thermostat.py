@@ -101,6 +101,10 @@ with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_R
         ax.set_ylabel("Temperature (°C)")
         ax.legend()
 
+        # Add horizontal lines for the thresholds
+        ax.axhline(TEMP_THRESHOLD_HEATER, color='red', linestyle='--', label=f"Heater Threshold ({TEMP_THRESHOLD_HEATER}°C)")
+        ax.axhline(TEMP_THRESHOLD_COOLER, color='blue', linestyle='--', label=f"Cooler Threshold ({TEMP_THRESHOLD_COOLER}°C)")
+
         while True:
             # Read temperatures
             heater_temp = heater_reader.get_temperature()
