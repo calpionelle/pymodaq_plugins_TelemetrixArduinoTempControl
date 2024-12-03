@@ -7,6 +7,7 @@ Created on Wed Nov  6 10:09:35 2024
 
 import time
 import logging
+import matplotlib.pyplot as plt
 from datetime import datetime
 from thermistor_model import ThermistorModel
 from Thermistor_Reader import ThermistorReader
@@ -75,60 +76,89 @@ thR_model = ThermistorModel(file_path, ref_R=THERMISTOR_25C, resistance_col_labe
 logger.info(f"Using a heater thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_HEATER} ohm.")
 logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_COOLER} ohm.")
 
-# Set up thermistor readers and controllers for the heater and cooler
-with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_R_Rth_GND') as heater_thermistor_reader, \
-     Digital_PinController(DIGITAL_PIN_HEATER) as heater_controller, \
-     ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_thermistor_reader, \
-     Digital_PinController(DIGITAL_PIN_COOLER) as cooler_controller:
-    
-    last_toggle_time_heater = 0  # Track the last toggle time for the heater
-    last_toggle_time_cooler = 0  # Track the last toggle time for the cooler
-    
+# Initialize data lists for plotting
+heater_times, heater_temps = [], []
+cooler_times, cooler_temps = [], []
+
+# Set up thermistor readers and controllers
+with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_R_Rth_GND') as heater_reader, \
+     Digital_PinController(DIGITAL_PIN_HEATER) as heater_ctrl, \
+     ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_reader, \
+     Digital_PinController(DIGITAL_PIN_COOLER) as cooler_ctrl:
+
+    last_toggle_time_heater = 0
+    last_toggle_time_cooler = 0
+    start_time = time.time()
+
     try:
+        # Set up live plotting
+        plt.ion()
+        fig, ax = plt.subplots()
+        heater_line, = ax.plot([], [], 'r+-', label="Heater Temp (°C)")
+        cooler_line, = ax.plot([], [], 'b+-', label="Cooler Temp (°C)")
+        ax.set_title("Temperature Monitoring")
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Temperature (°C)")
+        ax.legend()
+
         while True:
-            # Read temperature from the heater thermistor
-            heater_temperature = heater_thermistor_reader.get_temperature()
-            if heater_temperature is not None:
-                # Log the temperature for the heater
-                logger.info(f"\033[1;31mHeater Temperature: {heater_temperature:.2f}°C\033[0m")
-                
-                current_time = time.time()
+            # Read temperatures
+            heater_temp = heater_reader.get_temperature()
+            cooler_temp = cooler_reader.get_temperature()
+            current_time = time.time()
+
+            # Update and log heater
+            if heater_temp is not None:
+                elapsed_time = current_time - start_time
+                heater_times.append(elapsed_time)
+                heater_temps.append(heater_temp)
+                logger.info(f"\033[1;31mHeater Temperature: {heater_temp:.2f}°C\033[0m")
+
                 if current_time - last_toggle_time_heater >= MIN_TIME:
-                    # Control the heater based on the temperature threshold
-                    if heater_temperature < TEMP_THRESHOLD_HEATER and heater_controller.is_on():
-                        heater_controller.turn_off() # Turn off pin will turn on the relay power to heat
+                    if heater_temp < TEMP_THRESHOLD_HEATER and heater_ctrl.is_on():
+                        heater_ctrl.turn_off()
                         logger.info("Heater ON")
                         last_toggle_time_heater = current_time
-                    elif heater_temperature >= TEMP_THRESHOLD_HEATER and not heater_controller.is_on():
-                        heater_controller.turn_on() # Turn on pin will turn off the relay power to stop heating
+                    elif heater_temp >= TEMP_THRESHOLD_HEATER and not heater_ctrl.is_on():
+                        heater_ctrl.turn_on()
                         logger.info("Heater OFF")
                         last_toggle_time_heater = current_time
 
-            # Read temperature from the cooler thermistor
-            cooler_temperature = cooler_thermistor_reader.get_temperature()
-            if cooler_temperature is not None:
-                # Log the temperature for the cooler
-                logger.info(f"\033[1;34mCooler Temperature: {cooler_temperature:.2f}°C\033[0m")
+            # Update and log cooler
+            if cooler_temp is not None:
+                elapsed_time = current_time - start_time
+                cooler_times.append(elapsed_time)
+                cooler_temps.append(cooler_temp)
+                logger.info(f"\033[1;34mCooler Temperature: {cooler_temp:.2f}°C\033[0m")
 
-                
-                current_time = time.time()
                 if current_time - last_toggle_time_cooler >= MIN_TIME:
-                    # Control the cooler based on the temperature threshold
-                    if cooler_temperature > TEMP_THRESHOLD_COOLER and cooler_controller.is_on():
-                        cooler_controller.turn_off() # Turn off pin will turn on the relay power to cool
+                    if cooler_temp > TEMP_THRESHOLD_COOLER and cooler_ctrl.is_on():
+                        cooler_ctrl.turn_off()
                         logger.info("Cooler ON")
                         last_toggle_time_cooler = current_time
-                    elif cooler_temperature <= TEMP_THRESHOLD_COOLER and not cooler_controller.is_on():
-                        cooler_controller.turn_on() # Turn on pin will turn off the relay power to stop cooling
+                    elif cooler_temp <= TEMP_THRESHOLD_COOLER and not cooler_ctrl.is_on():
+                        cooler_ctrl.turn_on()
                         logger.info("Cooler OFF")
                         last_toggle_time_cooler = current_time
-            
-            # Wait for a short time before the next reading
+
+            # Update the plot
+            heater_line.set_data(heater_times, heater_temps)
+            cooler_line.set_data(cooler_times, cooler_temps)
+            ax.relim()
+            ax.autoscale_view()
+            plt.pause(0.1)
+
             time.sleep(0.5)
-    
     except KeyboardInterrupt:
         logger.info("Script terminated by user.")
     finally:
-        heater_controller.turn_off()  # Ensure heater pin is off on exit
-        cooler_controller.turn_off()  # Ensure cooler pin is off on exit
-        logger.info("Script exited, and both heater and cooler pins turned off.")
+        heater_ctrl.turn_on()
+        cooler_ctrl.turn_on()
+        logger.info("Script exited. Both heater and cooler pins turned on (i.e. no current through the relays).")
+
+        # Save the plot
+        graph_file_path = log_file_path.replace(".log", ".png")
+        plt.savefig(graph_file_path)
+        logger.info(f"Graph saved at {graph_file_path}.")
+        plt.ioff()
+        plt.show()
