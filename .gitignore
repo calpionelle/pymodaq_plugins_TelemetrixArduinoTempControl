@@ -113,3 +113,4 @@ venv.bak/
 
 *yacctab.py
 *lextab.py
+/src/pymodaq_plugins_TelemetrixArduinoTempControl/hardware/logs
