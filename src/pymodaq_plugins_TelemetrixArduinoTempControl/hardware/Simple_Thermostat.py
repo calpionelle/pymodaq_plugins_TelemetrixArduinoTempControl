@@ -13,18 +13,23 @@ from thermistor_model import ThermistorModel
 from Thermistor_Reader import ThermistorReader
 from Digital_Output_Controller import Digital_PinController
 import os
+from colorama import init, Fore
+
+# Initialize colorama
+init(autoreset=True)
 
 # Define constants
 THERMISTOR_PIN_HEATER = 0        # Analog pin for the heater thermistor
 THERMISTOR_PIN_COOLER = 1        # Analog pin for the cooler thermistor (e.g., A0)
 DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
 DIGITAL_PIN_COOLER = 4           # Digital pin to control the cooler
-TEMP_THRESHOLD_HEATER = 25.0     # Heater activation threshold in °C
+TEMP_THRESHOLD_HEATER = 60.0     # Heater activation threshold in °C
 TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
 SERIES_RESISTOR_HEATER = 13000   # Series resistor for the heater thermistor in ohms
 SERIES_RESISTOR_COOLER = 13000   # Series resistor for the cooler thermistor in ohms
 THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
 MIN_TIME = 5.0                   # Minimum time interval between pin state changes in seconds
+SLIDE_WINDOW_TIME = 300          # Sliding window time in seconds (5 minutes)
 
 # Define a logger setup function
 def setup_logger(logger_name, log_file, level=logging.DEBUG):
@@ -76,93 +81,151 @@ thR_model = ThermistorModel(file_path, ref_R=THERMISTOR_25C, resistance_col_labe
 logger.info(f"Using a heater thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_HEATER} ohm.")
 logger.info(f"Using a cooler thermistor of type {resistance_column}, with ref resistance {THERMISTOR_25C} ohm, and series resistor {SERIES_RESISTOR_COOLER} ohm.")
 
-# Initialize data lists for plotting
-heater_times, heater_temps = [], []
-cooler_times, cooler_temps = [], []
+# Initialize data lists for plotting (full dataset)
+full_times = {}
+full_temps = {}
 
-# Set up thermistor readers and controllers
-with ThermistorReader(THERMISTOR_PIN_HEATER, thR_model, series_resistor=SERIES_RESISTOR_HEATER, series_mode='VCC_R_Rth_GND') as heater_reader, \
-     Digital_PinController(DIGITAL_PIN_HEATER) as heater_ctrl, \
-     ThermistorReader(THERMISTOR_PIN_COOLER, thR_model, series_resistor=SERIES_RESISTOR_COOLER, series_mode='VCC_R_Rth_GND') as cooler_reader, \
-     Digital_PinController(DIGITAL_PIN_COOLER) as cooler_ctrl:
+# Initialize data lists for real-time sliding window
+sensor_times = {}
+sensor_temps = {}
 
-    last_toggle_time_heater = 0
-    last_toggle_time_cooler = 0
-    start_time = time.time()
+# Define the sensor configurations (dynamically populated)
+sensors = {
+    "heater": {
+        "pin": THERMISTOR_PIN_HEATER,
+        "digital_pin": DIGITAL_PIN_HEATER,
+        "temp_threshold": TEMP_THRESHOLD_HEATER,
+        "series_resistor": SERIES_RESISTOR_HEATER,
+        "name": "Heater",
+        "line_color": '#FF5733',  # Hex color code for heater
+    },
+    "cooler": {
+        "pin": THERMISTOR_PIN_COOLER,
+        "digital_pin": DIGITAL_PIN_COOLER,
+        "temp_threshold": TEMP_THRESHOLD_COOLER,
+        "series_resistor": SERIES_RESISTOR_COOLER,
+        "name": "Cooler",
+        "line_color": '#33CFFF',  # Hex color code for cooler
+    },
+}
 
-    try:
-        # Set up live plotting
-        plt.ion()
-        fig, ax = plt.subplots()
-        heater_line, = ax.plot([], [], 'r+-', label="Heater Temp (°C)")
-        cooler_line, = ax.plot([], [], 'b+-', label="Cooler Temp (°C)")
-        ax.set_title("Temperature Monitoring")
-        ax.set_xlabel("Time (s)")
-        ax.set_ylabel("Temperature (°C)")
-        ax.legend()
+# Manually initialize the thermistor readers and digital controllers
+sensor_readers_controllers = {}
+for sensor_name, config in sensors.items():
+    sensor_reader = ThermistorReader(config['pin'], thR_model, series_resistor=config['series_resistor'], series_mode='VCC_R_Rth_GND')
+    controller = Digital_PinController(config['digital_pin'])
+    sensor_readers_controllers[sensor_name] = (sensor_reader, controller)
 
-        # Add horizontal lines for the thresholds
-        ax.axhline(TEMP_THRESHOLD_HEATER, color='red', linestyle='--', label=f"Heater Threshold ({TEMP_THRESHOLD_HEATER}°C)")
-        ax.axhline(TEMP_THRESHOLD_COOLER, color='blue', linestyle='--', label=f"Cooler Threshold ({TEMP_THRESHOLD_COOLER}°C)")
+last_toggle_times = {sensor_name: 0 for sensor_name in sensors}
+start_time = time.time()
 
-        while True:
-            # Read temperatures
-            heater_temp = heater_reader.get_temperature()
-            cooler_temp = cooler_reader.get_temperature()
-            current_time = time.time()
+# Generalized method to update the graph for any sensor
+def update_graph(sensor_name, times, temps, line):
+    line.set_data(times, temps)
+    ax.relim()
+    ax.autoscale_view()
 
-            # Update and log heater
-            if heater_temp is not None:
+# Helper function to convert hex color to colorama-compatible format
+def hex_to_foreground_color(hex_color):
+    """Convert hex color code to colorama foreground color."""
+    if hex_color == '#FF5733':
+        return Fore.RED
+    elif hex_color == '#33CFFF':
+        return Fore.CYAN
+    else:
+        return Fore.WHITE
+
+try:
+    # Set up live plotting
+    plt.ion()
+    fig, ax = plt.subplots()
+    sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
+    
+    ax.set_title("Temperature Monitoring")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Temperature (°C)")
+    ax.legend()
+    ax.grid(True)  # Add grid to the real-time plot
+
+    # Add horizontal lines for the thresholds with matching colors
+    for sensor_name, config in sensors.items():
+        ax.axhline(config['temp_threshold'], linestyle='--', color=config['line_color'], label=f"{config['name']} Threshold ({config['temp_threshold']}°C)")
+
+    while True:
+        for sensor_name, config in sensors.items():
+            reader, controller = sensor_readers_controllers[sensor_name]
+            temp = reader.get_temperature()
+            if temp is not None:
+                current_time = time.time()
                 elapsed_time = current_time - start_time
-                heater_times.append(elapsed_time)
-                heater_temps.append(heater_temp)
-                logger.info(f"\033[1;31mHeater Temperature: {heater_temp:.2f}°C\033[0m")
 
-                if current_time - last_toggle_time_heater >= MIN_TIME:
-                    if heater_temp < TEMP_THRESHOLD_HEATER and heater_ctrl.is_on():
-                        heater_ctrl.turn_off()
-                        logger.info("Heater ON")
-                        last_toggle_time_heater = current_time
-                    elif heater_temp >= TEMP_THRESHOLD_HEATER and not heater_ctrl.is_on():
-                        heater_ctrl.turn_on()
-                        logger.info("Heater OFF")
-                        last_toggle_time_heater = current_time
+                # Update full data
+                full_times.setdefault(sensor_name, []).append(elapsed_time)
+                full_temps.setdefault(sensor_name, []).append(temp)
 
-            # Update and log cooler
-            if cooler_temp is not None:
-                elapsed_time = current_time - start_time
-                cooler_times.append(elapsed_time)
-                cooler_temps.append(cooler_temp)
-                logger.info(f"\033[1;34mCooler Temperature: {cooler_temp:.2f}°C\033[0m")
+                # Real-time sliding window data update
+                sensor_times.setdefault(sensor_name, []).append(elapsed_time)
+                sensor_temps.setdefault(sensor_name, []).append(temp)
 
-                if current_time - last_toggle_time_cooler >= MIN_TIME:
-                    if cooler_temp > TEMP_THRESHOLD_COOLER and cooler_ctrl.is_on():
-                        cooler_ctrl.turn_off()
-                        logger.info("Cooler ON")
-                        last_toggle_time_cooler = current_time
-                    elif cooler_temp <= TEMP_THRESHOLD_COOLER and not cooler_ctrl.is_on():
-                        cooler_ctrl.turn_on()
-                        logger.info("Cooler OFF")
-                        last_toggle_time_cooler = current_time
+                if elapsed_time > SLIDE_WINDOW_TIME:
+                    # Remove old data (older than SLIDE_WINDOW_TIME)
+                    sensor_times[sensor_name].pop(0)
+                    sensor_temps[sensor_name].pop(0)
 
-            # Update the plot
-            heater_line.set_data(heater_times, heater_temps)
-            cooler_line.set_data(cooler_times, cooler_temps)
-            ax.relim()
-            ax.autoscale_view()
-            plt.pause(0.1)
+                # Log color formatting using colorama
+                color_code = config['line_color']
+                log_color = hex_to_foreground_color(color_code)
+                logger.info(f"{log_color}{config['name']} Temperature: {temp:.2f}°C")
 
-            time.sleep(0.5)
-    except KeyboardInterrupt:
-        logger.info("Script terminated by user.")
-    finally:
-        heater_ctrl.turn_on()
-        cooler_ctrl.turn_on()
-        logger.info("Script exited. Both heater and cooler pins turned on (i.e. no current through the relays).")
+                # Update control logic for each sensor
+                if current_time - last_toggle_times[sensor_name] >= MIN_TIME:
+                    if temp < config['temp_threshold'] and controller.is_on():
+                        controller.turn_off()
+                        logger.info(f"{config['name']} OFF")
+                        last_toggle_times[sensor_name] = current_time
+                    elif temp >= config['temp_threshold'] and not controller.is_on():
+                        controller.turn_on()
+                        logger.info(f"{config['name']} ON")
+                        last_toggle_times[sensor_name] = current_time
 
-        # Save the plot
-        graph_file_path = log_file_path.replace(".log", ".png")
-        plt.savefig(graph_file_path)
-        logger.info(f"Graph saved at {graph_file_path}.")
-        plt.ioff()
-        plt.show()
+                # Update the graph for the sensor
+                update_graph(sensor_name, sensor_times[sensor_name], sensor_temps[sensor_name], sensor_lines[sensor_name])
+
+        plt.pause(0.1)
+
+        time.sleep(0.5)
+
+except KeyboardInterrupt:
+    logger.info("Script terminated by user.")
+finally:
+    for sensor_name, config in sensors.items():
+        sensor_readers_controllers[sensor_name][1].turn_off()  # Ensure all controllers are turned off
+        sensor_readers_controllers[sensor_name][0].disconnect() # Disconnect thermistor reader
+        sensor_readers_controllers[sensor_name][1].disconnect() # Disconnect digital pin controller
+
+    logger.info("Script exited. All devices are turned off.")
+
+    # Save the plot with the full dataset
+    full_fig, full_ax = plt.subplots()
+    full_sensor_lines = {
+        sensor_name: full_ax.plot(full_times[sensor_name], full_temps[sensor_name], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0]
+        for sensor_name, config in sensors.items()
+    }
+    full_ax.set_title("Full Temperature Data")
+    full_ax.set_xlabel("Time (s)")
+    full_ax.set_ylabel("Temperature (°C)")
+    full_ax.legend()
+    full_ax.grid(True)
+
+    for sensor_name, config in sensors.items():
+        full_ax.axhline(config['temp_threshold'], linestyle='--', color=config['line_color'], label=f"{config['name']} Threshold ({config['temp_threshold']}°C)")
+
+    full_fig.tight_layout()
+    # Save the plot
+    # full_fig.savefig(f"full_temperature_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
+    graph_file_path = log_file_path.replace(".log", ".png")
+    full_fig.savefig(graph_file_path)
+    logger.info(f"Graph saved at {graph_file_path}.")
+    plt.ioff()
+    plt.show()
+    
