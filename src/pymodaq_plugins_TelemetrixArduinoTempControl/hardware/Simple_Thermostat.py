@@ -215,7 +215,7 @@ except KeyboardInterrupt:
     logger.info("Script terminated by user.")
 finally:
     for sensor_name, config in sensors.items():
-        sensor_readers_controllers[sensor_name][1].turn_off()  # Ensure all controllers are turned off
+        sensor_readers_controllers[sensor_name][1].turn_on()  # Ensure all controllers are turned on to switch off the relay current
         sensor_readers_controllers[sensor_name][0].disconnect() # Disconnect thermistor reader
         sensor_readers_controllers[sensor_name][1].disconnect() # Disconnect digital pin controller
 
