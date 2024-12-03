@@ -45,8 +45,8 @@ class Digital_PinController(Base_Telemetrix_Instrument):
         return self.state
     
     def __exit__(self, exc_type, exc_value, traceback):
-        logger.debug(f'Setting RelayController pin {self.pin} to low before exiting.')
-        self.turn_off()
+        # logger.debug(f'Setting RelayController pin {self.pin} to low before exiting.')
+        # self.turn_off()
         super().__exit__(exc_type, exc_value, traceback)  # Call the parent method
 
 if __name__ == '__main__':
