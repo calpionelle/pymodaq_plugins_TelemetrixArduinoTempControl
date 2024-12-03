@@ -128,12 +128,28 @@ def update_graph(sensor_name, times, temps, line):
 # Helper function to convert hex color to colorama-compatible format
 def hex_to_foreground_color(hex_color):
     """Convert hex color code to colorama foreground color."""
-    if hex_color == '#FF5733':
+    # Convert hex color to RGB values
+    rgb = tuple(int(hex_color.lstrip('#')[i:i+2], 16) for i in (0, 2, 4))
+    
+    # Basic RGB thresholds for closest Colorama colors
+    red, green, blue = rgb
+    if red > 150 and green < 100 and blue < 100:
         return Fore.RED
-    elif hex_color == '#33CFFF':
+    elif red < 100 and green > 150 and blue < 100:
+        return Fore.GREEN
+    elif red < 100 and green < 100 and blue > 150:
+        return Fore.BLUE
+    elif red > 150 and green > 150 and blue < 100:
+        return Fore.YELLOW
+    elif red < 100 and green > 150 and blue > 150:
         return Fore.CYAN
+    elif red > 150 and green < 100 and blue > 150:
+        return Fore.MAGENTA
+    elif red < 100 and green < 100 and blue < 100:
+        return Fore.BLACK
     else:
         return Fore.WHITE
+
 
 try:
     # Set up live plotting
