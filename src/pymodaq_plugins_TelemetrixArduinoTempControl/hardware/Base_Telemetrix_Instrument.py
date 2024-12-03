@@ -13,12 +13,12 @@ logging.basicConfig(level=logging.DEBUG)  # Set to DEBUG level for detailed outp
 logger = logging.getLogger(__name__)
 
 class Base_Telemetrix_Instrument:
-    """Base class to manage the connection to the telemetrix board as a singleton."""
+    """Base class to manage the connection to the Telemetrix board as a singleton."""
     
     _connection_manager = None  # Singleton instance of ConnectionManager
 
     class ConnectionManager:
-        """Manages the connection to the telemetrix board."""
+        """Manages the connection to the Telemetrix board."""
         
         def __init__(self, com_port, ip_port):
             self.board = None
@@ -51,7 +51,7 @@ class Base_Telemetrix_Instrument:
         self.board = self.connection_manager.board
 
     def __del__(self):
-        self.connection_manager.disconnect()
+        self.disconnect()  # Ensure disconnection upon deletion of the object
     
     def __enter__(self):
         logger.debug(f'Entering context with Base_Telemetrix_Instrument for pin {self.pin}.')
@@ -59,7 +59,12 @@ class Base_Telemetrix_Instrument:
 
     def __exit__(self, exc_type, exc_value, traceback):
         logger.debug(f'Exiting context with Base_Telemetrix_Instrument for pin {self.pin}.')
-        self.connection_manager.disconnect()  # Disconnect when exiting the context
+        self.disconnect()  # Disconnect when exiting the context
+
+    def disconnect(self):
+        """Explicitly disconnect the connection without relying on context manager."""
+        logger.debug(f'Disconnecting the Telemetrix board for pin {self.pin}.')
+        self.connection_manager.disconnect()
 
 
 if __name__ == '__main__':
