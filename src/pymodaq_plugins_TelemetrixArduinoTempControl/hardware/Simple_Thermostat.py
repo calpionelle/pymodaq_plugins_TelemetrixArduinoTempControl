@@ -155,7 +155,8 @@ try:
     # Set up live plotting
     plt.ion()
     fig, ax = plt.subplots()
-    sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
+    # sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
+    sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], marker='+', markersize=6, label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
     
     ax.set_title("Temperature Monitoring")
     ax.set_xlabel("Time (s)")
@@ -208,7 +209,6 @@ try:
                 update_graph(sensor_name, sensor_times[sensor_name], sensor_temps[sensor_name], sensor_lines[sensor_name])
 
         plt.pause(0.1)
-
         time.sleep(0.5)
 
 except KeyboardInterrupt:
@@ -224,7 +224,7 @@ finally:
     # Save the plot with the full dataset
     full_fig, full_ax = plt.subplots()
     full_sensor_lines = {
-        sensor_name: full_ax.plot(full_times[sensor_name], full_temps[sensor_name], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0]
+        sensor_name: full_ax.plot(full_times[sensor_name], full_temps[sensor_name], color=config['line_color'], marker='+', markersize=6, label=f"{config['name']} Temp (°C)")[0]
         for sensor_name, config in sensors.items()
     }
     full_ax.set_title("Full Temperature Data")
@@ -237,11 +237,8 @@ finally:
         full_ax.axhline(config['temp_threshold'], linestyle='--', color=config['line_color'], label=f"{config['name']} Threshold ({config['temp_threshold']}°C)")
 
     full_fig.tight_layout()
-    # Save the plot
-    # full_fig.savefig(f"full_temperature_plot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
     graph_file_path = log_file_path.replace(".log", ".png")
     full_fig.savefig(graph_file_path)
     logger.info(f"Graph saved at {graph_file_path}.")
     plt.ioff()
     plt.show()
-    
