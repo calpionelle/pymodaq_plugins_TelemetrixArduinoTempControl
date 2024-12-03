@@ -150,24 +150,10 @@ def hex_to_foreground_color(hex_color):
     else:
         return Fore.WHITE
 
-
-try:
-    # Set up live plotting
-    plt.ion()
-    fig, ax = plt.subplots()
-    # sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
-    sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], marker='+', markersize=6, label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
-    
-    ax.set_title("Temperature Monitoring")
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Temperature (°C)")
-    ax.legend()
-    ax.grid(True)  # Add grid to the real-time plot
-
-    # Add horizontal lines for the thresholds with matching colors
-    for sensor_name, config in sensors.items():
-        ax.axhline(config['temp_threshold'], linestyle='--', color=config['line_color'], label=f"{config['name']} Threshold ({config['temp_threshold']}°C)")
-
+def monitor_temperatures():
+    """
+    Function to continuously monitor the temperatures, update the graph, and control the heater and cooler.
+    """
     while True:
         for sensor_name, config in sensors.items():
             reader, controller = sensor_readers_controllers[sensor_name]
@@ -210,6 +196,28 @@ try:
 
         plt.pause(0.1)
         time.sleep(0.5)
+
+try:
+    # Set up live plotting
+    plt.ion()
+    fig, ax = plt.subplots()
+    # sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
+    sensor_lines = {sensor_name: ax.plot([], [], color=config['line_color'], marker='+', markersize=6, label=f"{config['name']} Temp (°C)")[0] for sensor_name, config in sensors.items()}
+    
+    ax.set_title("Temperature Monitoring")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Temperature (°C)")
+    ax.legend()
+    ax.grid(True)  # Add grid to the real-time plot
+
+    # Add horizontal lines for the thresholds with matching colors
+    for sensor_name, config in sensors.items():
+        ax.axhline(config['temp_threshold'], linestyle='--', color=config['line_color'], label=f"{config['name']} Threshold ({config['temp_threshold']}°C)")
+
+
+    # Call the function to start monitoring
+    monitor_temperatures()
+
 
 except KeyboardInterrupt:
     logger.info("Script terminated by user.")
