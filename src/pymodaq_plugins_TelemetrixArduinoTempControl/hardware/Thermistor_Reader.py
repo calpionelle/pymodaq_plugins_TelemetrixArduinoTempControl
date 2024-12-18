@@ -76,9 +76,9 @@ class ThermistorReader(Base_Telemetrix_Instrument):
             return self._temperature
 
 if __name__ == '__main__':
-    THERMISTOR_PIN = 4  # Analog pin where thermistor is connected
+    THERMISTOR_PIN = 0  # Analog pin where thermistor is connected
     THERMISTOR_25C = 10000  # Resistance at 25°C
-    SERIES_RESISTOR = 10000  # Known resistor in ohms
+    SERIES_RESISTOR = 13000  # Known resistor in ohms
 
     # Load thermistor model from CSV file
     file_path = "../../../Thermistor_R_vs_T.csv"

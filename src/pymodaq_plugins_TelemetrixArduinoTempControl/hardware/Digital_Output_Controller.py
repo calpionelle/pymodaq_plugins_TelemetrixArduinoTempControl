@@ -50,7 +50,7 @@ class Digital_PinController(Base_Telemetrix_Instrument):
         super().__exit__(exc_type, exc_value, traceback)  # Call the parent method
 
 if __name__ == '__main__':
-    RELAY_PIN_1 = 8  # Digital pin where digital_pin 1 is connected
+    RELAY_PIN_1 = 4  # Digital pin where digital_pin 1 is connected
     RELAY_PIN_2 = 2  # Digital pin where digital_pin 2 is connected
     
     # Frequencies for blinking (in seconds)

@@ -21,8 +21,8 @@ init(autoreset=True)
 # Define constants
 THERMISTOR_PIN_HEATER = 0        # Analog pin for the heater thermistor
 THERMISTOR_PIN_COOLER = 1        # Analog pin for the cooler thermistor (e.g., A0)
-DIGITAL_PIN_HEATER = 2           # Digital pin to control the heater
-DIGITAL_PIN_COOLER = 4           # Digital pin to control the cooler
+DIGITAL_PIN_HEATER = 4           # Digital pin to control the heater
+DIGITAL_PIN_COOLER = 2           # Digital pin to control the cooler
 TEMP_THRESHOLD_HEATER = 60.0     # Heater activation threshold in °C
 TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
 SERIES_RESISTOR_HEATER = 13000   # Series resistor for the heater thermistor in ohms
