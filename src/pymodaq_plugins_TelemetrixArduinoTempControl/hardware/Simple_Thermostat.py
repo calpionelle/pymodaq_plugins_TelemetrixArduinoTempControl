@@ -24,7 +24,7 @@ THERMISTOR_PIN_COOLER = 1        # Analog pin for the cooler thermistor (e.g., A
 DIGITAL_PIN_HEATER = 4           # Digital pin to control the heater
 DIGITAL_PIN_COOLER = 2           # Digital pin to control the cooler
 TEMP_THRESHOLD_HEATER = 60.0     # Heater activation threshold in °C
-TEMP_THRESHOLD_COOLER = 26.0     # Cooler activation threshold in °C
+TEMP_THRESHOLD_COOLER = 19.0     # Cooler activation threshold in °C
 SERIES_RESISTOR_HEATER = 13000   # Series resistor for the heater thermistor in ohms
 SERIES_RESISTOR_COOLER = 13000   # Series resistor for the cooler thermistor in ohms
 THERMISTOR_25C = 10000           # Resistance of the thermistor at 25°C
@@ -98,6 +98,7 @@ sensors = {
         "series_resistor": SERIES_RESISTOR_HEATER,
         "name": "Heater",
         "line_color": '#FF5733',  # Hex color code for heater
+        'is_heater': True,  # Set this to True for heater, False for cooler
     },
     "cooler": {
         "pin": THERMISTOR_PIN_COOLER,
@@ -106,7 +107,8 @@ sensors = {
         "series_resistor": SERIES_RESISTOR_COOLER,
         "name": "Cooler",
         "line_color": '#33CFFF',  # Hex color code for cooler
-    },
+        'is_heater': False,  # Set this to True for heater, False for cooler
+},
 }
 
 # Manually initialize the thermistor readers and digital controllers
@@ -182,14 +184,25 @@ def monitor_temperatures():
 
                 # Update control logic for each sensor
                 if current_time - last_toggle_times[sensor_name] >= MIN_TIME:
-                    if temp < config['temp_threshold'] and controller.is_on():
-                        controller.turn_off()
-                        logger.info(f"{config['name']} OFF")
-                        last_toggle_times[sensor_name] = current_time
-                    elif temp >= config['temp_threshold'] and not controller.is_on():
-                        controller.turn_on()
-                        logger.info(f"{config['name']} ON")
-                        last_toggle_times[sensor_name] = current_time
+                    if config['is_heater']:  # If it's a heater
+                        if temp < config['temp_threshold'] and controller.is_on():
+                            controller.turn_off()
+                            logger.info(f"{config['name']} OFF")
+                            last_toggle_times[sensor_name] = current_time
+                        elif temp >= config['temp_threshold'] and not controller.is_on():
+                            controller.turn_on()
+                            logger.info(f"{config['name']} ON")
+                            last_toggle_times[sensor_name] = current_time
+                    else:  # If it's a cooler
+                        if temp >= config['temp_threshold'] and controller.is_on():
+                            controller.turn_off()
+                            logger.info(f"{config['name']} OFF")
+                            last_toggle_times[sensor_name] = current_time
+                        elif temp < config['temp_threshold'] and not controller.is_on():
+                            controller.turn_on()
+                            logger.info(f"{config['name']} ON")
+                            last_toggle_times[sensor_name] = current_time
+
 
                 # Update the graph for the sensor
                 update_graph(sensor_name, sensor_times[sensor_name], sensor_temps[sensor_name], sensor_lines[sensor_name])
